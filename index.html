@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kayaking Booking Manager</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #f2f2f2;
+    padding: 10px;
+}
+
+.card {
+    background: white;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+}
+
+input, select, button {
+    width: 100%;
+    padding: 8px;
+    margin-top: 6px;
+}
+
+button {
+    background: #0d6efd;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+.pay {
+    background: green;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Kayaking Booking Manager</h2>
+
+<div class="card">
+    <input id="operator" placeholder="Operator Name">
+    <input id="datetime" type="datetime-local">
+    <input id="customers" type="number" placeholder="No of Customers">
+    <input id="amount" type="number" placeholder="Amount ₹">
+    <input id="upi" placeholder="Receiver UPI ID">
+    <button onclick="addBooking()">Add Booking</button>
+</div>
+
+<div id="bookings"></div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+
+const firebaseConfig = {
+   apiKey: "YOUR_KEY",
+   authDomain: "YOUR_DOMAIN",
+   projectId: "YOUR_PROJECT_ID",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+function addBooking() {
+    db.collection("bookings").add({
+        operator: operator.value,
+        datetime: datetime.value,
+        customers: customers.value,
+        amount: amount.value,
+        upiId: upi.value,
+        status: "Pending",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}
+
+db.collection("bookings").orderBy("createdAt","desc")
+.onSnapshot(snapshot => {
+    let html = "";
+    snapshot.forEach(doc => {
+        const d = doc.data();
+
+        const gpayLink =
+`upi://pay?pa=${d.upiId}&pn=${d.operator}&am=${d.amount}&cu=INR`;
+
+        html += `
+        <div class="card">
+            <b>${d.operator}</b><br>
+            📅 ${d.datetime}<br>
+            👥 Customers: ${d.customers}<br>
+            💰 ₹${d.amount}<br>
+            ✅ Status: ${d.status}<br><br>
+
+            <a href="${gpayLink}">
+                <button class="pay">Pay Now</button>
+            </a>
+
+            <button onclick="markPaid('${doc.id}')">Mark Paid</button>
+        </div>`;
+    });
+
+    document.getElementById("bookings").innerHTML = html;
+});
+
+function markPaid(id){
+    db.collection("bookings").doc(id).update({
+        status: "Paid"
+    });
+}
+
+</script>
+</body>
+</html>
