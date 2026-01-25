@@ -191,15 +191,20 @@ function payNow(upiLink) {
   if (paymentInProgress) return;
   paymentInProgress = true;
 
-  // Convert upi://pay to Android intent
-  const intentLink =
-    upiLink.replace("upi://pay", "intent://pay") +
-    "#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end";
+  // Try normal UPI deep link first
+  window.location.href = upiLink;
 
-  window.location.href = intentLink;
+  // Fallback for browsers that block upi://
+  setTimeout(() => {
+    const intentLink =
+      upiLink.replace("upi://pay", "intent://pay") +
+      "#Intent;scheme=upi;end";
 
-  setTimeout(() => paymentInProgress = false, 5000);
+    window.location.href = intentLink;
+    paymentInProgress = false;
+  }, 1000);
 }
+
 
 /* ============================
    LOAD BOOKINGS
@@ -383,10 +388,10 @@ function renderBookings(bookings) {
 
     /* ✅ SIMPLE SAFE UPI LINK */
     const gpayLink =
-      `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
-      `&pn=Victory%20Kayaking` +
-      `&am=${Number(d.amount)}` +
-      `&cu=INR`;
+  `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
+  `&am=${Number(d.amount)}` +
+  `&cu=INR`;
+
 
     const activityStatus = d.activityDone
       ? `🛶 Activity: Completed`
