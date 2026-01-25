@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -186,11 +186,17 @@ function copyLink(textOverride) {
 
 let paymentInProgress = false;
 
-function payNow(link) {
+/* ✅ FIXED PAYMENT OPENING */
+function payNow(upiLink) {
   if (paymentInProgress) return;
-
   paymentInProgress = true;
-  window.location.href = link;
+
+  // Convert upi://pay to Android intent
+  const intentLink =
+    upiLink.replace("upi://pay", "intent://pay") +
+    "#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end";
+
+  window.location.href = intentLink;
 
   setTimeout(() => paymentInProgress = false, 5000);
 }
@@ -251,7 +257,7 @@ function applyMonthFilter() {
 }
 
 /* ============================
-   OPERATOR FILTER + MONTH FILTER
+   FILTERS
 ============================ */
 
 function applyFilters() {
@@ -275,7 +281,7 @@ function applyFilters() {
 }
 
 /* ============================
-   BUILD PENDING OPERATORS LIST
+   BUILD PENDING OPERATORS
 ============================ */
 
 function buildPendingOperators(bookings) {
@@ -285,7 +291,6 @@ function buildPendingOperators(bookings) {
 
   bookings.forEach(b => {
     if (b.status !== "Pending") return;
-
     const key = b.operatorKey || b.operator.toLowerCase();
 
     if (!pendingMap[key]) {
@@ -316,7 +321,7 @@ function buildPendingOperators(bookings) {
 }
 
 /* ============================
-   ACTIVITY CONFIRMATION (OPERATOR)
+   ACTIVITY CONFIRMATION
 ============================ */
 
 function confirmActivity(id) {
@@ -332,21 +337,17 @@ function confirmActivity(id) {
 }
 
 /* ============================
-   EDIT / DELETE (OWNER)
+   EDIT / DELETE
 ============================ */
 
 function editBooking(id, current) {
   if (role !== "owner") return;
-
-  if (current.status === "Paid") {
-    alert("Paid bookings cannot be edited.");
-    return;
-  }
+  if (current.status === "Paid") return alert("Paid bookings cannot be edited.");
 
   const operator = prompt("Operator Name:", current.operator);
   if (!operator) return;
 
-  const datetime = prompt("Date & Time (YYYY-MM-DDTHH:MM):", current.datetime);
+  const datetime = prompt("Date & Time:", current.datetime);
   if (!datetime) return;
 
   const customers = prompt("Customers:", current.customers);
@@ -366,9 +367,7 @@ function editBooking(id, current) {
 
 function deleteBooking(id) {
   if (role !== "owner") return;
-
-  const ok = confirm("Delete this booking permanently?");
-  if (!ok) return;
+  if (!confirm("Delete this booking permanently?")) return;
 
   db.collection("bookings").doc(id).delete();
 }
@@ -377,19 +376,17 @@ function deleteBooking(id) {
    RENDER BOOKINGS
 ============================ */
 
-<!-- INSIDE renderBookings(bookings) FUNCTION -->
-
 function renderBookings(bookings) {
   let html = "";
 
   bookings.forEach(d => {
 
+    /* ✅ SIMPLE SAFE UPI LINK */
     const gpayLink =
       `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
       `&pn=Victory%20Kayaking` +
-      `&am=${d.amount}` +
-      `&cu=INR` +
-      `&tn=Kayaking%20Payment`;
+      `&am=${Number(d.amount)}` +
+      `&cu=INR`;
 
     const activityStatus = d.activityDone
       ? `🛶 Activity: Completed`
@@ -432,9 +429,8 @@ function renderBookings(bookings) {
   document.getElementById("bookings").innerHTML = html;
 }
 
-
 /* ============================
-   MARK PAID (OWNER)
+   MARK PAID
 ============================ */
 
 function markPaid(id){
