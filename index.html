@@ -50,7 +50,14 @@ button {
   <button onclick="addBooking()">Add Booking</button>
 </div>
 
-<!-- BOOKINGS DISPLAY (THIS WAS MISSING) -->
+<!-- OPERATOR LINK BOX -->
+<div class="card" id="linkBox" style="display:none;">
+  <b>Operator Link</b>
+  <input id="operatorLink" readonly>
+  <button onclick="copyLink()">Copy Link</button>
+</div>
+
+<!-- BOOKINGS DISPLAY -->
 <div id="bookings"></div>
 
 <!-- FIREBASE -->
@@ -96,7 +103,7 @@ window.onload = () => {
 };
 
 /* ============================
-   ADD BOOKING
+   ADD BOOKING (OWNER ONLY)
 ============================ */
 
 function addBooking() {
@@ -114,8 +121,21 @@ function addBooking() {
   }).then(doc => {
     const operatorLink =
       `${location.origin}${location.pathname}?role=operator&id=${doc.id}`;
-    alert("Send this link to operator:\n\n" + operatorLink);
+
+    document.getElementById("linkBox").style.display = "block";
+    document.getElementById("operatorLink").value = operatorLink;
   });
+}
+
+/* ============================
+   COPY LINK
+============================ */
+
+function copyLink() {
+  const input = document.getElementById("operatorLink");
+  input.select();
+  document.execCommand("copy");
+  alert("Operator link copied.");
 }
 
 /* ============================
@@ -148,7 +168,11 @@ query.onSnapshot(snapshot => {
         💰 ₹${d.amount}<br>
         ✅ Status: ${d.status}<br><br>
 
-        <button class="pay" onclick="payNow('${gpayLink}')">Pay Now</button>
+        ${
+          role === "operator"
+          ? `<button class="pay" onclick="payNow('${gpayLink}')">Pay Now</button>`
+          : ""
+        }
 
         ${
           role === "operator" && d.status !== "Paid"
