@@ -152,7 +152,7 @@ function addBooking() {
     operatorKey: operator.value.trim().toLowerCase(),
     datetime: datetime.value,
     customers: customers.value,
-    amount: amount.value,
+    amount: Number(amount.value),
     upiId: OWNER_UPI,
     status: "Pending",
     activityDone: false,
@@ -173,38 +173,28 @@ function addBooking() {
 function copyLink(textOverride) {
   const text = textOverride || document.getElementById("operatorLink").value;
 
-  navigator.clipboard.writeText(text).then(() => {
-    alert("Link copied.");
-  }).catch(() => {
-    alert("Copy failed. Please long press and copy manually.");
-  });
+  navigator.clipboard.writeText(text)
+    .then(() => alert("Link copied."))
+    .catch(() => alert("Copy failed."));
 }
 
 /* ============================
-   PAYMENT LOCK
+   PAYMENT HANDLER (STABLE)
 ============================ */
 
 let paymentInProgress = false;
 
-/* ✅ FIXED PAYMENT OPENING */
 function payNow(upiLink) {
   if (paymentInProgress) return;
   paymentInProgress = true;
 
-  // Try normal UPI deep link first
+  // Only standard UPI deep link – no intent fallback
   window.location.href = upiLink;
 
-  // Fallback for browsers that block upi://
   setTimeout(() => {
-    const intentLink =
-      upiLink.replace("upi://pay", "intent://pay") +
-      "#Intent;scheme=upi;end";
-
-    window.location.href = intentLink;
     paymentInProgress = false;
-  }, 1000);
+  }, 4000);
 }
-
 
 /* ============================
    LOAD BOOKINGS
@@ -332,8 +322,7 @@ function buildPendingOperators(bookings) {
 function confirmActivity(id) {
   if (role !== "operator") return;
 
-  const ok = confirm("Confirm that the activity has been completed?");
-  if (!ok) return;
+  if (!confirm("Confirm that the activity has been completed?")) return;
 
   db.collection("bookings").doc(id).update({
     activityDone: true,
@@ -366,7 +355,7 @@ function editBooking(id, current) {
     operatorKey: operator.trim().toLowerCase(),
     datetime,
     customers,
-    amount
+    amount: Number(amount)
   });
 }
 
@@ -386,12 +375,11 @@ function renderBookings(bookings) {
 
   bookings.forEach(d => {
 
-    /* ✅ SIMPLE SAFE UPI LINK */
-    const gpayLink =
-  `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
-  `&am=${Number(d.amount)}` +
-  `&cu=INR`;
-
+    const upiLink =
+      `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
+      `&pn=Victory Kayaking` +
+      `&am=${Number(d.amount).toFixed(2)}` +
+      `&cu=INR`;
 
     const activityStatus = d.activityDone
       ? `🛶 Activity: Completed`
@@ -408,7 +396,7 @@ function renderBookings(bookings) {
 
         ${
           role === "operator" && d.status !== "Paid"
-          ? `<button class="pay" onclick="payNow('${gpayLink}')">Pay Now</button>`
+          ? `<button class="pay" onclick="payNow('${upiLink}')">Pay Now</button>`
           : ""
         }
 
