@@ -31,9 +31,10 @@ button {
   border-radius: 5px;
 }
 
-.pay {
-  background: green;
-}
+.pay { background: green; }
+.done { background: #198754; }
+.danger { background: #dc3545; }
+.small { font-size: 13px; color: #444; }
 </style>
 </head>
 
@@ -47,6 +48,12 @@ button {
   <select id="monthFilter" onchange="applyMonthFilter()">
     <option value="all">All</option>
   </select>
+</div>
+
+<!-- PENDING OPERATORS LIST -->
+<div class="card" id="pendingOperatorsBox">
+  <b>Pending Payments by Operator</b>
+  <div id="pendingOperators"></div>
 </div>
 
 <!-- OWNER FORM -->
@@ -82,6 +89,7 @@ const OWNER_UPI = "astonnoronha123@okhdfcbank";
 const params = new URLSearchParams(window.location.search);
 const role = params.get("role") || "owner";
 const bookingId = params.get("id");
+const operatorFilter = params.get("operator");
 
 /* ============================
    FIREBASE INIT
@@ -109,12 +117,14 @@ window.onload = () => {
   const ownerForm = document.getElementById("ownerForm");
   const linkBox = document.getElementById("linkBox");
   const filterBox = document.getElementById("monthFilterBox");
+  const pendingBox = document.getElementById("pendingOperatorsBox");
 
   if (role === "operator") {
-    title.innerText = "Pending Payment";
+    title.innerText = "Today's Activities & Payment";
     ownerForm.style.display = "none";
     linkBox.style.display = "none";
     filterBox.style.display = "none";
+    pendingBox.style.display = "none";
   } else {
     title.innerText = "Kayaking Booking Manager";
   }
@@ -138,12 +148,14 @@ function addBooking() {
   }
 
   db.collection("bookings").add({
-    operator: operator.value,
+    operator: operator.value.trim(),
+    operatorKey: operator.value.trim().toLowerCase(),
     datetime: datetime.value,
     customers: customers.value,
     amount: amount.value,
     upiId: OWNER_UPI,
     status: "Pending",
+    activityDone: false,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(doc => {
     const operatorLink =
@@ -158,11 +170,11 @@ function addBooking() {
    COPY LINK
 ============================ */
 
-function copyLink() {
-  const text = document.getElementById("operatorLink").value;
+function copyLink(textOverride) {
+  const text = textOverride || document.getElementById("operatorLink").value;
 
   navigator.clipboard.writeText(text).then(() => {
-    alert("Operator link copied.");
+    alert("Link copied.");
   }).catch(() => {
     alert("Copy failed. Please long press and copy manually.");
   });
@@ -192,11 +204,8 @@ let allBookings = [];
 let query = db.collection("bookings").orderBy("createdAt","desc");
 
 if (role === "operator" && bookingId) {
-  query = db.collection("bookings").where(
-    firebase.firestore.FieldPath.documentId(),
-    "==",
-    bookingId
-  );
+  query = db.collection("bookings")
+    .where(firebase.firestore.FieldPath.documentId(), "==", bookingId);
 }
 
 query.onSnapshot(snapshot => {
@@ -215,7 +224,8 @@ query.onSnapshot(snapshot => {
   });
 
   populateMonthFilter([...monthSet].sort());
-  renderBookings(allBookings);
+  buildPendingOperators(allBookings);
+  applyFilters();
 });
 
 /* ============================
@@ -237,16 +247,130 @@ function populateMonthFilter(months) {
 }
 
 function applyMonthFilter() {
-  const selected = document.getElementById("monthFilter").value;
+  applyFilters();
+}
 
-  if (selected === "all") {
-    renderBookings(allBookings);
-  } else {
-    const filtered = allBookings.filter(b =>
-      b.datetime && b.datetime.startsWith(selected)
+/* ============================
+   OPERATOR FILTER + MONTH FILTER
+============================ */
+
+function applyFilters() {
+  let filtered = [...allBookings];
+
+  const selectedMonth = document.getElementById("monthFilter")?.value;
+  if (selectedMonth && selectedMonth !== "all") {
+    filtered = filtered.filter(b =>
+      b.datetime && b.datetime.startsWith(selectedMonth)
     );
-    renderBookings(filtered);
   }
+
+  if (operatorFilter) {
+    const key = operatorFilter.toLowerCase();
+    filtered = filtered.filter(b =>
+      b.operatorKey === key && b.status !== "Paid"
+    );
+  }
+
+  renderBookings(filtered);
+}
+
+/* ============================
+   BUILD PENDING OPERATORS LIST
+============================ */
+
+function buildPendingOperators(bookings) {
+  if (role !== "owner") return;
+
+  const pendingMap = {};
+
+  bookings.forEach(b => {
+    if (b.status !== "Pending") return;
+
+    const key = b.operatorKey || b.operator.toLowerCase();
+
+    if (!pendingMap[key]) {
+      pendingMap[key] = { name: b.operator, count: 0 };
+    }
+
+    pendingMap[key].count++;
+  });
+
+  let html = "";
+
+  Object.keys(pendingMap).forEach(key => {
+    const op = pendingMap[key];
+    const link =
+      `${location.origin}${location.pathname}?role=operator&operator=${encodeURIComponent(key)}`;
+
+    html += `
+      <div class="small">
+        <b>${op.name}</b> — ${op.count} pending
+        <br>
+        <button onclick="copyLink('${link}')">Copy Payment Link</button>
+      </div><hr>
+    `;
+  });
+
+  document.getElementById("pendingOperators").innerHTML =
+    html || "<i>No pending payments.</i>";
+}
+
+/* ============================
+   ACTIVITY CONFIRMATION (OPERATOR)
+============================ */
+
+function confirmActivity(id) {
+  if (role !== "operator") return;
+
+  const ok = confirm("Confirm that the activity has been completed?");
+  if (!ok) return;
+
+  db.collection("bookings").doc(id).update({
+    activityDone: true,
+    activityDoneAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+/* ============================
+   EDIT / DELETE (OWNER)
+============================ */
+
+function editBooking(id, current) {
+  if (role !== "owner") return;
+
+  if (current.status === "Paid") {
+    alert("Paid bookings cannot be edited.");
+    return;
+  }
+
+  const operator = prompt("Operator Name:", current.operator);
+  if (!operator) return;
+
+  const datetime = prompt("Date & Time (YYYY-MM-DDTHH:MM):", current.datetime);
+  if (!datetime) return;
+
+  const customers = prompt("Customers:", current.customers);
+  if (!customers || isNaN(customers)) return;
+
+  const amount = prompt("Amount ₹:", current.amount);
+  if (!amount || isNaN(amount) || Number(amount) <= 0) return;
+
+  db.collection("bookings").doc(id).update({
+    operator: operator.trim(),
+    operatorKey: operator.trim().toLowerCase(),
+    datetime,
+    customers,
+    amount
+  });
+}
+
+function deleteBooking(id) {
+  if (role !== "owner") return;
+
+  const ok = confirm("Delete this booking permanently?");
+  if (!ok) return;
+
+  db.collection("bookings").doc(id).delete();
 }
 
 /* ============================
@@ -266,13 +390,18 @@ function renderBookings(bookings) {
       `&tn=Booking%20Payment` +
       `&tr=${txnId}`;
 
+    const activityStatus = d.activityDone
+      ? `🛶 Activity: Completed`
+      : `🛶 Activity: Pending`;
+
     html += `
       <div class="card">
         <b>${d.operator}</b><br>
         📅 ${d.datetime}<br>
         👥 Customers: ${d.customers}<br>
         💰 ₹${d.amount}<br>
-        ✅ Status: ${d.status}<br><br>
+        ✅ Payment: ${d.status}<br>
+        ${activityStatus}<br><br>
 
         ${
           role === "operator" && d.status !== "Paid"
@@ -281,8 +410,18 @@ function renderBookings(bookings) {
         }
 
         ${
-          role === "owner" && d.status !== "Paid"
-          ? `<button onclick="markPaid('${d.id}')">Mark Paid</button>`
+          role === "operator" && !d.activityDone
+          ? `<button class="done" onclick="confirmActivity('${d.id}')">Confirm Activity Completed</button>`
+          : ""
+        }
+
+        ${
+          role === "owner"
+          ? `
+            ${d.status !== "Paid" ? `<button onclick="markPaid('${d.id}')">Mark Paid</button>` : ""}
+            <button onclick='editBooking("${d.id}", ${JSON.stringify(d)})'>Edit</button>
+            <button class="danger" onclick="deleteBooking('${d.id}')">Delete</button>
+          `
           : ""
         }
       </div>
@@ -293,7 +432,7 @@ function renderBookings(bookings) {
 }
 
 /* ============================
-   MARK PAID
+   MARK PAID (OWNER)
 ============================ */
 
 function markPaid(id){
