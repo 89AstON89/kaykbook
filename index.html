@@ -1,3 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kayaking Booking Manager</title>
+
+<style>
+body {
+  font-family: Arial;
+  background: #f2f2f2;
+  padding: 10px;
+}
+
+.card {
+  background: white;
+  padding: 15px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+}
+
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+}
+
+button {
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 5px;
+}
+
+.pay {
+  background: green;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Kayaking Booking Manager</h2>
+
+<!-- OWNER FORM -->
+<div class="card">
+  <input id="operator" placeholder="Operator Name">
+  <input id="datetime" type="datetime-local">
+  <input id="customers" type="number" placeholder="No of Customers">
+  <input id="amount" type="number" placeholder="Amount ₹">
+  <button onclick="addBooking()">Add Booking</button>
+</div>
+
+<!-- BOOKINGS DISPLAY (THIS WAS MISSING) -->
+<div id="bookings"></div>
+
+<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -6,16 +62,14 @@
    CONFIGURATION
 ============================ */
 
-// ✅ OWNER UPI ID
 const OWNER_UPI = "astonnoronha123@okhdfcbank";
 
-// ✅ Role detection
 const params = new URLSearchParams(window.location.search);
-const role = params.get("role") || "owner";     // owner | operator
+const role = params.get("role") || "owner";
 const bookingId = params.get("id");
 
 /* ============================
-   FIREBASE INIT (CORRECT)
+   FIREBASE INIT
 ============================ */
 
 const firebaseConfig = {
@@ -37,21 +91,17 @@ const db = firebase.firestore();
 
 window.onload = () => {
   if (role === "operator") {
-    const form = document.querySelector(".card");
-    if (form) form.style.display = "none";
+    document.querySelector(".card").style.display = "none";
   }
 };
 
 /* ============================
-   ADD BOOKING (OWNER ONLY)
+   ADD BOOKING
 ============================ */
 
 function addBooking() {
 
-  if (role !== "owner") {
-    alert("Only owner can create bookings.");
-    return;
-  }
+  if (role !== "owner") return alert("Only owner can create bookings.");
 
   db.collection("bookings").add({
     operator: operator.value,
@@ -64,7 +114,6 @@ function addBooking() {
   }).then(doc => {
     const operatorLink =
       `${location.origin}${location.pathname}?role=operator&id=${doc.id}`;
-
     alert("Send this link to operator:\n\n" + operatorLink);
   });
 }
@@ -88,36 +137,33 @@ query.onSnapshot(snapshot => {
 
   snapshot.forEach(doc => {
     const d = doc.data();
-
     const gpayLink =
       `upi://pay?pa=${encodeURIComponent(d.upiId)}&pn=Kayaking&am=${d.amount}&cu=INR`;
 
     html += `
-    <div class="card">
-      <b>${d.operator}</b><br>
-      📅 ${d.datetime}<br>
-      👥 Customers: ${d.customers}<br>
-      💰 ₹${d.amount}<br>
-      ✅ Status: ${d.status}<br><br>
+      <div class="card">
+        <b>${d.operator}</b><br>
+        📅 ${d.datetime}<br>
+        👥 Customers: ${d.customers}<br>
+        💰 ₹${d.amount}<br>
+        ✅ Status: ${d.status}<br><br>
 
-      <button class="pay" onclick="payNow('${gpayLink}')">
-        Pay Now
-      </button>
+        <button class="pay" onclick="payNow('${gpayLink}')">Pay Now</button>
 
-      ${
-        role === "operator" && d.status !== "Paid"
-        ? `<button onclick="markPaid('${doc.id}')">Confirm Paid</button>`
-        : ""
-      }
-    </div>`;
+        ${
+          role === "operator" && d.status !== "Paid"
+          ? `<button onclick="markPaid('${doc.id}')">Confirm Paid</button>`
+          : ""
+        }
+      </div>
+    `;
   });
 
-  const container = document.getElementById("bookings");
-  if (container) container.innerHTML = html;
+  document.getElementById("bookings").innerHTML = html;
 });
 
 /* ============================
-   PAY NOW FIX
+   PAY NOW
 ============================ */
 
 function payNow(link) {
@@ -125,17 +171,17 @@ function payNow(link) {
 }
 
 /* ============================
-   MARK PAID (OPERATOR ONLY)
+   MARK PAID
 ============================ */
 
 function markPaid(id){
-  if (role !== "operator") {
-    alert("Only operator can confirm payment.");
-    return;
-  }
+  if (role !== "operator") return alert("Only operator can confirm payment.");
 
   db.collection("bookings").doc(id).update({
     status: "Paid"
   });
 }
 </script>
+
+</body>
+</html>
