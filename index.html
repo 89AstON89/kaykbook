@@ -39,10 +39,10 @@ button {
 
 <body>
 
-<h2>Kayaking Booking Manager</h2>
+<h2 id="pageTitle">Kayaking Booking Manager</h2>
 
 <!-- OWNER FORM -->
-<div class="card">
+<div class="card" id="ownerForm">
   <input id="operator" placeholder="Operator Name">
   <input id="datetime" type="datetime-local">
   <input id="customers" type="number" placeholder="No of Customers">
@@ -97,9 +97,18 @@ const db = firebase.firestore();
 ============================ */
 
 window.onload = () => {
+  const title = document.getElementById("pageTitle");
+  const ownerForm = document.getElementById("ownerForm");
+  const linkBox = document.getElementById("linkBox");
+
   if (role === "operator") {
-    document.querySelector(".card").style.display = "none";
-    document.getElementById("linkBox").style.display = "none";
+    // Operator view
+    title.innerText = "Pending Payment";
+    ownerForm.style.display = "none";
+    linkBox.style.display = "none";
+  } else {
+    // Owner view
+    title.innerText = "Kayaking Booking Manager";
   }
 };
 
@@ -108,7 +117,6 @@ window.onload = () => {
 ============================ */
 
 function addBooking() {
-
   if (role !== "owner") return alert("Only owner can create bookings.");
 
   db.collection("bookings").add({
