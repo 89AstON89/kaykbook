@@ -99,6 +99,7 @@ const db = firebase.firestore();
 window.onload = () => {
   if (role === "operator") {
     document.querySelector(".card").style.display = "none";
+    document.getElementById("linkBox").style.display = "none";
   }
 };
 
@@ -169,14 +170,14 @@ query.onSnapshot(snapshot => {
         ✅ Status: ${d.status}<br><br>
 
         ${
-          role === "operator"
+          role === "operator" && d.status !== "Paid"
           ? `<button class="pay" onclick="payNow('${gpayLink}')">Pay Now</button>`
           : ""
         }
 
         ${
-          role === "operator" && d.status !== "Paid"
-          ? `<button onclick="markPaid('${doc.id}')">Confirm Paid</button>`
+          role === "owner" && d.status !== "Paid"
+          ? `<button onclick="markPaid('${doc.id}')">Mark Paid</button>`
           : ""
         }
       </div>
@@ -195,11 +196,11 @@ function payNow(link) {
 }
 
 /* ============================
-   MARK PAID
+   MARK PAID (OWNER ONLY)
 ============================ */
 
 function markPaid(id){
-  if (role !== "operator") return alert("Only operator can confirm payment.");
+  if (role !== "owner") return alert("Only owner can mark payment.");
 
   db.collection("bookings").doc(id).update({
     status: "Paid"
