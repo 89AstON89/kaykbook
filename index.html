@@ -18,7 +18,7 @@ body {
   border-radius: 10px;
 }
 
-input, button {
+input, button, select {
   width: 100%;
   padding: 10px;
   margin-top: 6px;
@@ -40,6 +40,14 @@ button {
 <body>
 
 <h2 id="pageTitle">Kayaking Booking Manager</h2>
+
+<!-- OWNER FILTER -->
+<div class="card" id="monthFilterBox">
+  <b>Filter by Month</b>
+  <select id="monthFilter" onchange="applyMonthFilter()">
+    <option value="all">All</option>
+  </select>
+</div>
 
 <!-- OWNER FORM -->
 <div class="card" id="ownerForm">
@@ -100,24 +108,34 @@ window.onload = () => {
   const title = document.getElementById("pageTitle");
   const ownerForm = document.getElementById("ownerForm");
   const linkBox = document.getElementById("linkBox");
+  const filterBox = document.getElementById("monthFilterBox");
 
   if (role === "operator") {
-    // Operator view
     title.innerText = "Pending Payment";
     ownerForm.style.display = "none";
     linkBox.style.display = "none";
+    filterBox.style.display = "none";
   } else {
-    // Owner view
     title.innerText = "Kayaking Booking Manager";
   }
 };
 
 /* ============================
-   ADD BOOKING (OWNER ONLY)
+   ADD BOOKING
 ============================ */
 
 function addBooking() {
   if (role !== "owner") return alert("Only owner can create bookings.");
+
+  if (!operator.value || !datetime.value || !customers.value || !amount.value) {
+    alert("Please fill all fields.");
+    return;
+  }
+
+  if (Number(amount.value) <= 0) {
+    alert("Amount must be greater than zero.");
+    return;
+  }
 
   db.collection("bookings").add({
     operator: operator.value,
@@ -141,15 +159,35 @@ function addBooking() {
 ============================ */
 
 function copyLink() {
-  const input = document.getElementById("operatorLink");
-  input.select();
-  document.execCommand("copy");
-  alert("Operator link copied.");
+  const text = document.getElementById("operatorLink").value;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert("Operator link copied.");
+  }).catch(() => {
+    alert("Copy failed. Please long press and copy manually.");
+  });
+}
+
+/* ============================
+   PAYMENT LOCK
+============================ */
+
+let paymentInProgress = false;
+
+function payNow(link) {
+  if (paymentInProgress) return;
+
+  paymentInProgress = true;
+  window.location.href = link;
+
+  setTimeout(() => paymentInProgress = false, 5000);
 }
 
 /* ============================
    LOAD BOOKINGS
 ============================ */
+
+let allBookings = [];
 
 let query = db.collection("bookings").orderBy("createdAt","desc");
 
@@ -162,12 +200,71 @@ if (role === "operator" && bookingId) {
 }
 
 query.onSnapshot(snapshot => {
-  let html = "";
+  allBookings = [];
+  const monthSet = new Set();
 
   snapshot.forEach(doc => {
-    const d = doc.data();
+    const data = doc.data();
+    data.id = doc.id;
+    allBookings.push(data);
+
+    if (data.datetime) {
+      const month = data.datetime.slice(0,7);
+      monthSet.add(month);
+    }
+  });
+
+  populateMonthFilter([...monthSet].sort());
+  renderBookings(allBookings);
+});
+
+/* ============================
+   MONTH FILTER
+============================ */
+
+function populateMonthFilter(months) {
+  if (role !== "owner") return;
+
+  const select = document.getElementById("monthFilter");
+  select.innerHTML = `<option value="all">All</option>`;
+
+  months.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.innerText = m;
+    select.appendChild(opt);
+  });
+}
+
+function applyMonthFilter() {
+  const selected = document.getElementById("monthFilter").value;
+
+  if (selected === "all") {
+    renderBookings(allBookings);
+  } else {
+    const filtered = allBookings.filter(b =>
+      b.datetime && b.datetime.startsWith(selected)
+    );
+    renderBookings(filtered);
+  }
+}
+
+/* ============================
+   RENDER BOOKINGS
+============================ */
+
+function renderBookings(bookings) {
+  let html = "";
+
+  bookings.forEach(d => {
+    const txnId = "KAYAK" + Date.now();
     const gpayLink =
-      `upi://pay?pa=${encodeURIComponent(d.upiId)}&pn=Kayaking&am=${d.amount}&cu=INR`;
+      `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
+      `&pn=Victory%20Kayaking` +
+      `&am=${d.amount}` +
+      `&cu=INR` +
+      `&tn=Booking%20Payment` +
+      `&tr=${txnId}`;
 
     html += `
       <div class="card">
@@ -185,7 +282,7 @@ query.onSnapshot(snapshot => {
 
         ${
           role === "owner" && d.status !== "Paid"
-          ? `<button onclick="markPaid('${doc.id}')">Mark Paid</button>`
+          ? `<button onclick="markPaid('${d.id}')">Mark Paid</button>`
           : ""
         }
       </div>
@@ -193,25 +290,18 @@ query.onSnapshot(snapshot => {
   });
 
   document.getElementById("bookings").innerHTML = html;
-});
-
-/* ============================
-   PAY NOW
-============================ */
-
-function payNow(link) {
-  window.location.href = link;
 }
 
 /* ============================
-   MARK PAID (OWNER ONLY)
+   MARK PAID
 ============================ */
 
 function markPaid(id){
   if (role !== "owner") return alert("Only owner can mark payment.");
 
   db.collection("bookings").doc(id).update({
-    status: "Paid"
+    status: "Paid",
+    paidAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 }
 </script>
