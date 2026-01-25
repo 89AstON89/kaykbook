@@ -6,22 +6,22 @@
    CONFIGURATION
 ============================ */
 
-// 🔴 OWNER UPI ID (CHANGE THIS)
+// ✅ OWNER UPI ID
 const OWNER_UPI = "astonnoronha123@okhdfcbank";
 
-// Read role & booking id from URL
+// ✅ Role detection
 const params = new URLSearchParams(window.location.search);
 const role = params.get("role") || "owner";     // owner | operator
 const bookingId = params.get("id");
 
 /* ============================
-   FIREBASE INIT
+   FIREBASE INIT (PUT YOUR REAL KEYS)
 ============================ */
 
 const firebaseConfig = {
-  apiKey: "YOUR_KEY",
-  authDomain: "YOUR_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+  projectId: "kaykbook-43ac4"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -31,9 +31,12 @@ const db = firebase.firestore();
    UI MODE CONTROL
 ============================ */
 
-if (role === "operator") {
-  document.querySelector(".card").style.display = "none"; // hide booking form
-}
+window.onload = () => {
+  if (role === "operator") {
+    const form = document.querySelector(".card");
+    if (form) form.style.display = "none";
+  }
+};
 
 /* ============================
    ADD BOOKING (OWNER ONLY)
@@ -41,21 +44,24 @@ if (role === "operator") {
 
 function addBooking() {
 
-  if (role !== "owner") return alert("Only owner can create bookings.");
+  if (role !== "owner") {
+    alert("Only owner can create bookings.");
+    return;
+  }
 
   db.collection("bookings").add({
     operator: operator.value,
     datetime: datetime.value,
     customers: customers.value,
     amount: amount.value,
-    upiId: OWNER_UPI,            // Always owner's UPI
+    upiId: OWNER_UPI,
     status: "Pending",
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(doc => {
-      const operatorLink =
-        `${location.origin}${location.pathname}?role=operator&id=${doc.id}`;
+    const operatorLink =
+      `${location.origin}${location.pathname}?role=operator&id=${doc.id}`;
 
-      alert("Send this link to operator:\n\n" + operatorLink);
+    alert("Send this link to operator:\n\n" + operatorLink);
   });
 }
 
@@ -90,9 +96,9 @@ query.onSnapshot(snapshot => {
       💰 ₹${d.amount}<br>
       ✅ Status: ${d.status}<br><br>
 
-      <a href="${gpayLink}">
-        <button class="pay">Pay Now</button>
-      </a>
+      <button class="pay" onclick="payNow('${gpayLink}')">
+        Pay Now
+      </button>
 
       ${
         role === "operator" && d.status !== "Paid"
@@ -102,15 +108,27 @@ query.onSnapshot(snapshot => {
     </div>`;
   });
 
-  document.getElementById("bookings").innerHTML = html;
+  const container = document.getElementById("bookings");
+  if (container) container.innerHTML = html;
 });
+
+/* ============================
+   PAY NOW FIX
+============================ */
+
+function payNow(link) {
+  window.location.href = link;
+}
 
 /* ============================
    MARK PAID (OPERATOR ONLY)
 ============================ */
 
 function markPaid(id){
-  if (role !== "operator") return alert("Only operator can confirm payment.");
+  if (role !== "operator") {
+    alert("Only operator can confirm payment.");
+    return;
+  }
 
   db.collection("bookings").doc(id).update({
     status: "Paid"
