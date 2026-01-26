@@ -185,9 +185,21 @@ function copyLink(textOverride) {
 let paymentInProgress = false;
 
 function payNow(upiId) {
-  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId)}`;
 
-  // This triggers Android UPI app chooser (GPay, PhonePe, Amazon Pay, etc.)
+  // Auto copy UPI first
+  navigator.clipboard.writeText(upiId).catch(()=>{});
+
+  alert(
+    "UPI ID copied.\n\n" +
+    "1. Open your UPI app (GPay / PhonePe / Paytm / Amazon Pay)\n" +
+    "2. Paste the UPI ID\n" +
+    "3. Enter amount manually\n" +
+    "4. Complete payment\n\n" +
+    "Please share payment screenshot after payment."
+  );
+
+  // Optional: Try opening UPI chooser (may still open receiver screen)
+  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId)}`;
   window.location.href = upiLink;
 }
 
@@ -454,6 +466,7 @@ function copyUPI(upi) {
 
 </body>
 </html>
+
 
 
 
