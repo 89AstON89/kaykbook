@@ -187,10 +187,9 @@ let paymentInProgress = false;
 function payNow() {
 
   alert(
-    "UPI ID already copied.\n\n" +
-    "Your UPI app will open now.\n\n" +
-    "Steps:\n" +
-    "1. Select your UPI app (GPay / PhonePe / Cred)\n" +
+    "UPI ID has been copied.\n\n" +
+    "Steps to Pay:\n" +
+    "1. Open your preferred UPI app (GPay / PhonePe / Cred)\n" +
     "2. Tap 'Pay Anyone' or 'Send Money'\n" +
     "3. Paste the UPI ID\n" +
     "4. Enter amount manually\n" +
@@ -198,10 +197,11 @@ function payNow() {
     "Please share a screenshot after payment."
   );
 
-  // Opens UPI app chooser without forcing receiver
+  // Attempt to open UPI chooser (may show limited apps only)
   const chooserLink = "intent://upi/#Intent;scheme=upi;end";
   window.location.href = chooserLink;
 }
+
 
 
 
@@ -467,6 +467,7 @@ function copyUPI(upi) {
 
 </body>
 </html>
+
 
 
 
