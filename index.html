@@ -120,7 +120,7 @@ window.onload = () => {
   const pendingBox = document.getElementById("pendingOperatorsBox");
 
   if (role === "operator") {
-    title.innerText = "Today's Activities & Payment";
+    title.innerText = "Pending Payments";
     ownerForm.style.display = "none";
     linkBox.style.display = "none";
     filterBox.style.display = "none";
@@ -376,11 +376,10 @@ function renderBookings(bookings) {
   bookings.forEach(d => {
 
     const upiLink =
-      `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
-      `&pn=Victory Kayaking` +
-      `&am=${Number(d.amount).toFixed(2)}` +
-      `&cu=INR`;
-
+  `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
+  `&am=${Number(d.amount).toFixed(2)}` +
+  `&cu=INR`;
+ 
     const activityStatus = d.activityDone
       ? `🛶 Activity: Completed`
       : `🛶 Activity: Pending`;
