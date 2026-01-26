@@ -184,17 +184,11 @@ function copyLink(textOverride) {
 
 let paymentInProgress = false;
 
-function payNow() {
-  if (paymentInProgress) return;
-  paymentInProgress = true;
+function payNow(upiId) {
+  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId)}`;
 
-  // Open UPI apps home screen (no amount, no pay intent)
-  const intentLink = "intent://upi/#Intent;scheme=upi;end";
-  window.location.href = intentLink;
-
-  setTimeout(() => {
-    paymentInProgress = false;
-  }, 3000);
+  // This triggers Android UPI app chooser (GPay, PhonePe, Amazon Pay, etc.)
+  window.location.href = upiLink;
 }
 
 
@@ -404,7 +398,8 @@ ${
         <b>UPI ID:</b> ${d.upiId}<br>
         <button onclick="copyUPI('${d.upiId}')">Copy UPI ID</button>
       </div>
-     <button class="pay" onclick="payNow()">Pay Now</button>
+    <button class="pay" onclick="payNow('${d.upiId}')">Pay Now</button>
+
 
 <div style="color:red; font-size:13px; margin-top:6px;">
   Pls Share a Screen shot of the payment made
@@ -459,5 +454,6 @@ function copyUPI(upi) {
 
 </body>
 </html>
+
 
 
