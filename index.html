@@ -188,13 +188,20 @@ function payNow(upiLink) {
   if (paymentInProgress) return;
   paymentInProgress = true;
 
-  // Only standard UPI deep link – no intent fallback
+  // Try normal UPI deep link first
   window.location.href = upiLink;
 
+  // Fallback for Android browsers that block upi://
   setTimeout(() => {
+    const intentLink =
+      upiLink.replace("upi://pay", "intent://pay") +
+      "#Intent;scheme=upi;end";
+
+    window.location.href = intentLink;
     paymentInProgress = false;
-  }, 4000);
+  }, 800);
 }
+
 
 /* ============================
    LOAD BOOKINGS
