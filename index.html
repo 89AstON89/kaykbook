@@ -375,11 +375,10 @@ function renderBookings(bookings) {
 
   bookings.forEach(d => {
 
+    const amount = String(Number(d.amount).toFixed(2));
     const upiLink =
-  `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
-  `&am=${Number(d.amount).toFixed(2)}` +
-  `&cu=INR`;
- 
+      `upi://pay?pa=${encodeURIComponent(d.upiId)}&pn=${encodeURIComponent("Victory Kayaking")}&am=${amount}&cu=INR&tn=${encodeURIComponent("Kayaking Booking")}`;
+
     const activityStatus = d.activityDone
       ? `🛶 Activity: Completed`
       : `🛶 Activity: Pending`;
