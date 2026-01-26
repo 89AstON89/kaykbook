@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -31,10 +31,11 @@ button {
   border-radius: 5px;
 }
 
-.pay { background: green; }
+.copy { background: #6c757d; }
 .done { background: #198754; }
 .danger { background: #dc3545; }
 .small { font-size: 13px; color: #444; }
+.info { font-size: 14px; margin-top: 5px; }
 </style>
 </head>
 
@@ -69,7 +70,7 @@ button {
 <div class="card" id="linkBox" style="display:none;">
   <b>Operator Link</b>
   <input id="operatorLink" readonly>
-  <button onclick="copyLink()">Copy Link</button>
+  <button onclick="copyText(operatorLink.value)">Copy Link</button>
 </div>
 
 <!-- BOOKINGS DISPLAY -->
@@ -99,10 +100,6 @@ const firebaseConfig = {
   apiKey: "AIzaSyANyCnvvN84F1IKRGQAzoNSiWTcVFjWR3I",
   authDomain: "kaykbook-43ac4.firebaseapp.com",
   projectId: "kaykbook-43ac4",
-  storageBucket: "kaykbook-43ac4.firebasestorage.app",
-  messagingSenderId: "407645371594",
-  appId: "1:407645371594:web:364808bc1d1c0712f10833",
-  measurementId: "G-RWD8JJ8M37"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -113,20 +110,13 @@ const db = firebase.firestore();
 ============================ */
 
 window.onload = () => {
-  const title = document.getElementById("pageTitle");
-  const ownerForm = document.getElementById("ownerForm");
-  const linkBox = document.getElementById("linkBox");
-  const filterBox = document.getElementById("monthFilterBox");
-  const pendingBox = document.getElementById("pendingOperatorsBox");
-
+  const title = pageTitle;
   if (role === "operator") {
-    title.innerText = "Pending Payments";
+    title.innerText = "Payment Instructions";
     ownerForm.style.display = "none";
     linkBox.style.display = "none";
-    filterBox.style.display = "none";
-    pendingBox.style.display = "none";
-  } else {
-    title.innerText = "Kayaking Booking Manager";
+    monthFilterBox.style.display = "none";
+    pendingOperatorsBox.style.display = "none";
   }
 };
 
@@ -135,15 +125,8 @@ window.onload = () => {
 ============================ */
 
 function addBooking() {
-  if (role !== "owner") return alert("Only owner can create bookings.");
-
   if (!operator.value || !datetime.value || !customers.value || !amount.value) {
     alert("Please fill all fields.");
-    return;
-  }
-
-  if (Number(amount.value) <= 0) {
-    alert("Amount must be greater than zero.");
     return;
   }
 
@@ -151,49 +134,29 @@ function addBooking() {
     operator: operator.value.trim(),
     operatorKey: operator.value.trim().toLowerCase(),
     datetime: datetime.value,
-    customers: customers.value,
+    customers: Number(customers.value),
     amount: Number(amount.value),
     upiId: OWNER_UPI,
     status: "Pending",
     activityDone: false,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(doc => {
-    const operatorLink =
+    const link =
       `${location.origin}${location.pathname}?role=operator&id=${doc.id}`;
 
-    document.getElementById("linkBox").style.display = "block";
-    document.getElementById("operatorLink").value = operatorLink;
+    linkBox.style.display = "block";
+    operatorLink.value = link;
   });
 }
 
 /* ============================
-   COPY LINK
+   COPY UTIL
 ============================ */
 
-function copyLink(textOverride) {
-  const text = textOverride || document.getElementById("operatorLink").value;
-
+function copyText(text) {
   navigator.clipboard.writeText(text)
-    .then(() => alert("Link copied."))
-    .catch(() => alert("Copy failed."));
-}
-
-/* ============================
-   PAYMENT HANDLER (STABLE)
-============================ */
-
-let paymentInProgress = false;
-
-function payNow(upiLink) {
-  if (paymentInProgress) return;
-  paymentInProgress = true;
-
-  // Only standard UPI deep link – no intent fallback
-  window.location.href = upiLink;
-
-  setTimeout(() => {
-    paymentInProgress = false;
-  }, 4000);
+    .then(() => alert("Copied successfully"))
+    .catch(() => alert("Copy failed"));
 }
 
 /* ============================
@@ -201,7 +164,6 @@ function payNow(upiLink) {
 ============================ */
 
 let allBookings = [];
-
 let query = db.collection("bookings").orderBy("createdAt","desc");
 
 if (role === "operator" && bookingId) {
@@ -211,39 +173,29 @@ if (role === "operator" && bookingId) {
 
 query.onSnapshot(snapshot => {
   allBookings = [];
-  const monthSet = new Set();
+  const months = new Set();
 
   snapshot.forEach(doc => {
     const data = doc.data();
     data.id = doc.id;
     allBookings.push(data);
-
-    if (data.datetime) {
-      const month = data.datetime.slice(0,7);
-      monthSet.add(month);
-    }
+    if (data.datetime) months.add(data.datetime.slice(0,7));
   });
 
-  populateMonthFilter([...monthSet].sort());
+  populateMonthFilter([...months]);
   buildPendingOperators(allBookings);
   applyFilters();
 });
 
 /* ============================
-   MONTH FILTER
+   FILTERS
 ============================ */
 
 function populateMonthFilter(months) {
   if (role !== "owner") return;
-
-  const select = document.getElementById("monthFilter");
-  select.innerHTML = `<option value="all">All</option>`;
-
+  monthFilter.innerHTML = `<option value="all">All</option>`;
   months.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.innerText = m;
-    select.appendChild(opt);
+    monthFilter.innerHTML += `<option value="${m}">${m}</option>`;
   });
 }
 
@@ -251,68 +203,50 @@ function applyMonthFilter() {
   applyFilters();
 }
 
-/* ============================
-   FILTERS
-============================ */
-
 function applyFilters() {
   let filtered = [...allBookings];
 
-  const selectedMonth = document.getElementById("monthFilter")?.value;
+  const selectedMonth = monthFilter?.value;
   if (selectedMonth && selectedMonth !== "all") {
-    filtered = filtered.filter(b =>
-      b.datetime && b.datetime.startsWith(selectedMonth)
-    );
+    filtered = filtered.filter(b => b.datetime?.startsWith(selectedMonth));
   }
 
   if (operatorFilter) {
     const key = operatorFilter.toLowerCase();
-    filtered = filtered.filter(b =>
-      b.operatorKey === key && b.status !== "Paid"
-    );
+    filtered = filtered.filter(b => b.operatorKey === key);
   }
 
   renderBookings(filtered);
 }
 
 /* ============================
-   BUILD PENDING OPERATORS
+   PENDING OPERATORS
 ============================ */
 
 function buildPendingOperators(bookings) {
   if (role !== "owner") return;
 
-  const pendingMap = {};
-
+  const map = {};
   bookings.forEach(b => {
     if (b.status !== "Pending") return;
-    const key = b.operatorKey || b.operator.toLowerCase();
-
-    if (!pendingMap[key]) {
-      pendingMap[key] = { name: b.operator, count: 0 };
-    }
-
-    pendingMap[key].count++;
+    const key = b.operatorKey;
+    map[key] = map[key] || { name: b.operator, count: 0 };
+    map[key].count++;
   });
 
   let html = "";
-
-  Object.keys(pendingMap).forEach(key => {
-    const op = pendingMap[key];
+  Object.keys(map).forEach(key => {
     const link =
       `${location.origin}${location.pathname}?role=operator&operator=${encodeURIComponent(key)}`;
-
     html += `
       <div class="small">
-        <b>${op.name}</b> — ${op.count} pending
-        <br>
-        <button onclick="copyLink('${link}')">Copy Payment Link</button>
+        <b>${map[key].name}</b> — ${map[key].count} pending<br>
+        <button onclick="copyText('${link}')">Copy Operator Link</button>
       </div><hr>
     `;
   });
 
-  document.getElementById("pendingOperators").innerHTML =
-    html || "<i>No pending payments.</i>";
+  pendingOperators.innerHTML = html || "<i>No pending payments.</i>";
 }
 
 /* ============================
@@ -320,10 +254,7 @@ function buildPendingOperators(bookings) {
 ============================ */
 
 function confirmActivity(id) {
-  if (role !== "operator") return;
-
-  if (!confirm("Confirm that the activity has been completed?")) return;
-
+  if (!confirm("Confirm that activity has been completed?")) return;
   db.collection("bookings").doc(id).update({
     activityDone: true,
     activityDoneAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -331,39 +262,33 @@ function confirmActivity(id) {
 }
 
 /* ============================
-   EDIT / DELETE
+   OWNER CONTROLS
 ============================ */
 
 function editBooking(id, current) {
-  if (role !== "owner") return;
-  if (current.status === "Paid") return alert("Paid bookings cannot be edited.");
-
-  const operator = prompt("Operator Name:", current.operator);
+  const operator = prompt("Operator:", current.operator);
   if (!operator) return;
 
-  const datetime = prompt("Date & Time:", current.datetime);
-  if (!datetime) return;
-
-  const customers = prompt("Customers:", current.customers);
-  if (!customers || isNaN(customers)) return;
-
   const amount = prompt("Amount ₹:", current.amount);
-  if (!amount || isNaN(amount) || Number(amount) <= 0) return;
+  if (!amount || isNaN(amount)) return;
 
   db.collection("bookings").doc(id).update({
     operator: operator.trim(),
     operatorKey: operator.trim().toLowerCase(),
-    datetime,
-    customers,
     amount: Number(amount)
   });
 }
 
 function deleteBooking(id) {
-  if (role !== "owner") return;
-  if (!confirm("Delete this booking permanently?")) return;
-
+  if (!confirm("Delete booking permanently?")) return;
   db.collection("bookings").doc(id).delete();
+}
+
+function markPaid(id) {
+  db.collection("bookings").doc(id).update({
+    status: "Paid",
+    paidAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
 }
 
 /* ============================
@@ -375,63 +300,50 @@ function renderBookings(bookings) {
 
   bookings.forEach(d => {
 
-    const amount = String(Number(d.amount).toFixed(2));
-    const upiLink =
-      `upi://pay?pa=${encodeURIComponent(d.upiId)}&pn=${encodeURIComponent("Victory Kayaking")}&am=${amount}&cu=INR&tn=${encodeURIComponent("Kayaking Booking")}`;
-
-    const activityStatus = d.activityDone
-      ? `🛶 Activity: Completed`
-      : `🛶 Activity: Pending`;
-
     html += `
       <div class="card">
         <b>${d.operator}</b><br>
         📅 ${d.datetime}<br>
         👥 Customers: ${d.customers}<br>
-        💰 ₹${d.amount}<br>
+        💰 Amount: ₹${d.amount}<br>
         ✅ Payment: ${d.status}<br>
-        ${activityStatus}<br><br>
+        🛶 Activity: ${d.activityDone ? "Completed" : "Pending"}<br><br>
 
         ${
-          role === "operator" && d.status !== "Paid"
-          ? `<button class="pay" onclick="payNow('${upiLink}')">Pay Now</button>`
-          : ""
-        }
-
-        ${
-          role === "operator" && !d.activityDone
-          ? `<button class="done" onclick="confirmActivity('${d.id}')">Confirm Activity Completed</button>`
-          : ""
-        }
-
-        ${
-          role === "owner"
+          role === "operator"
           ? `
+            <div class="info"><b>UPI ID:</b> ${d.upiId}</div>
+            <button class="copy" onclick="copyText('${d.upiId}')">Copy UPI ID</button>
+
+            <div class="info"><b>Amount:</b> ₹${d.amount}</div>
+            <button class="copy" onclick="copyText('${d.amount}')">Copy Amount</button>
+
+            <div class="info">
+              Open your UPI app manually and complete the payment using above details.
+            </div>
+
+            ${
+              !d.activityDone
+              ? `<button class="done" onclick="confirmActivity('${d.id}')">
+                   Confirm Activity Completed
+                 </button>`
+              : ""
+            }
+          `
+          : `
             ${d.status !== "Paid" ? `<button onclick="markPaid('${d.id}')">Mark Paid</button>` : ""}
             <button onclick='editBooking("${d.id}", ${JSON.stringify(d)})'>Edit</button>
             <button class="danger" onclick="deleteBooking('${d.id}')">Delete</button>
           `
-          : ""
         }
       </div>
     `;
   });
 
-  document.getElementById("bookings").innerHTML = html;
+  bookingsDiv.innerHTML = html;
 }
 
-/* ============================
-   MARK PAID
-============================ */
-
-function markPaid(id){
-  if (role !== "owner") return alert("Only owner can mark payment.");
-
-  db.collection("bookings").doc(id).update({
-    status: "Paid",
-    paidAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-}
+const bookingsDiv = document.getElementById("bookings");
 </script>
 
 </body>
