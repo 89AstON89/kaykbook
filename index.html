@@ -184,23 +184,19 @@ function copyLink(textOverride) {
 
 let paymentInProgress = false;
 
-function payNow(upiLink) {
+function payNow() {
   if (paymentInProgress) return;
   paymentInProgress = true;
 
-  // Try normal UPI deep link first
-  window.location.href = upiLink;
+  // Open UPI apps home screen (no amount, no pay intent)
+  const intentLink = "intent://upi/#Intent;scheme=upi;end";
+  window.location.href = intentLink;
 
-  // Fallback for Android browsers that block upi://
   setTimeout(() => {
-    const intentLink =
-      upiLink.replace("upi://pay", "intent://pay") +
-      "#Intent;scheme=upi;end";
-
-    window.location.href = intentLink;
     paymentInProgress = false;
-  }, 800);
+  }, 3000);
 }
+
 
 
 /* ============================
@@ -408,7 +404,12 @@ ${
         <b>UPI ID:</b> ${d.upiId}<br>
         <button onclick="copyUPI('${d.upiId}')">Copy UPI ID</button>
       </div>
-      <button class="pay" onclick="payNow('${upiLink}')">Pay Now</button>
+     <button class="pay" onclick="payNow()">Pay Now</button>
+
+<div style="color:red; font-size:13px; margin-top:6px;">
+  Pls Share a Screen shot of the payment made
+</div>
+
     `
   : ""
 }
@@ -458,3 +459,4 @@ function copyUPI(upi) {
 
 </body>
 </html>
+
