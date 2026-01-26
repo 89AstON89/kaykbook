@@ -184,23 +184,17 @@ function copyLink(textOverride) {
 
 let paymentInProgress = false;
 
-function payNow(upiId) {
-
-  // Auto copy UPI first
-  navigator.clipboard.writeText(upiId).catch(()=>{});
-
+function payNow() {
   alert(
-    "UPI ID copied.\n\n" +
-    "1. Open your UPI app (GPay / PhonePe / Paytm / Amazon Pay)\n" +
-    "2. Paste the UPI ID\n" +
-    "3. Enter amount manually\n" +
-    "4. Complete payment\n\n" +
-    "Please share payment screenshot after payment."
+    "UPI ID has been copied.\n\n" +
+    "Steps to Pay:\n" +
+    "1. Open your UPI app (GPay / PhonePe / Paytm / Cred)\n" +
+    "2. Tap 'Pay Anyone' or 'Send Money'\n" +
+    "3. Paste the UPI ID\n" +
+    "4. Enter amount manually\n" +
+    "5. Complete payment\n\n" +
+    "Please share a screenshot of the payment after completion."
   );
-
-  // Optional: Try opening UPI chooser (may still open receiver screen)
-  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId)}`;
-  window.location.href = upiLink;
 }
 
 
@@ -410,7 +404,8 @@ ${
         <b>UPI ID:</b> ${d.upiId}<br>
         <button onclick="copyUPI('${d.upiId}')">Copy UPI ID</button>
       </div>
-    <button class="pay" onclick="payNow('${d.upiId}')">Pay Now</button>
+    <button class="pay" onclick="payNow()">Pay Now</button>
+
 
 
 <div style="color:red; font-size:13px; margin-top:6px;">
@@ -466,6 +461,7 @@ function copyUPI(upi) {
 
 </body>
 </html>
+
 
 
 
