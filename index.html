@@ -1,477 +1,250 @@
-<!DOCTYPE html> 
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kayaking Booking Manager</title>
-
-<style>
-body {
-  font-family: Arial;
-  background: #f2f2f2;
-  padding: 10px;
-}
-
-.card {
-  background: white;
-  padding: 15px;
-  margin-bottom: 12px;
-  border-radius: 10px;
-}
-
-input, button, select {
-  width: 100%;
-  padding: 10px;
-  margin-top: 6px;
-}
-
-button {
-  background: #0d6efd;
-  color: white;
-  border: none;
-  border-radius: 5px;
-}
-
-.pay { background: green; }
-.done { background: #198754; }
-.danger { background: #dc3545; }
-.small { font-size: 13px; color: #444; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kayaking Booking Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 16px; }
+    .card { max-width: 680px; margin: 0 auto 12px; background: #fff; padding: 16px; border-radius: 10px; }
+    input, button { box-sizing: border-box; width: 100%; padding: 10px; margin-top: 8px; }
+    button { background: #0d6efd; color: #fff; border: 0; border-radius: 5px; cursor: pointer; }
+    .danger { background: #dc3545; }
+    .muted { color: #555; font-size: .9rem; }
+    .hidden { display: none; }
+    .booking { border-top: 1px solid #ddd; padding: 12px 0; }
+    .booking:first-child { border-top: 0; }
+  </style>
 </head>
-
 <body>
 
-<h2 id="pageTitle">Kayaking Booking Manager</h2>
+  <div class="card">
+    <h2>Kayaking Booking Manager</h2>
+    <p id="status" class="muted">Please sign in.</p>
+  </div>
 
-<!-- OWNER FILTER -->
-<div class="card" id="monthFilterBox">
-  <b>Filter by Month</b>
-  <select id="monthFilter" onchange="applyMonthFilter()">
-    <option value="all">All</option>
-  </select>
-</div>
+  <section id="loginCard" class="card">
+    <h3>Owner Sign In</h3>
+    <input id="email" type="email" autocomplete="email" placeholder="Email address">
+    <input id="password" type="password" autocomplete="current-password" placeholder="Password">
+    <button id="loginButton">Sign in</button>
+    <p class="muted">Owner access only. Never store passwords in Firestore.</p>
+  </section>
 
-<!-- PENDING OPERATORS LIST -->
-<div class="card" id="pendingOperatorsBox">
-  <b>Pending Payments by Operator</b>
-  <div id="pendingOperators"></div>
-</div>
+  <section id="app" class="hidden">
+    <div class="card">
+      <button id="logoutButton" class="danger">Sign out</button>
+    </div>
 
-<!-- OWNER FORM -->
-<div class="card" id="ownerForm">
-  <input id="operator" placeholder="Operator Name">
-  <input id="datetime" type="datetime-local">
-  <input id="customers" type="number" placeholder="No of Customers">
-  <input id="amount" type="number" placeholder="Amount ₹">
-  <button onclick="addBooking()">Add Booking</button>
-</div>
+    <section id="ownerPanel" class="card hidden">
+      <h3>Add booking</h3>
+      <input id="operatorName" placeholder="Operator name" maxlength="80">
+      <input id="datetime" type="datetime-local">
+      <input id="customers" type="number" min="1" placeholder="Number of customers">
+      <input id="amount" type="number" min="1" step="0.01" placeholder="Amount (₹)">
+      <button id="addButton">Add booking</button>
+    </section>
 
-<!-- OPERATOR LINK BOX -->
-<div class="card" id="linkBox" style="display:none;">
-  <b>Operator Link</b>
-  <input id="operatorLink" readonly>
-  <button onclick="copyLink()">Copy Link</button>
-</div>
+    <section class="card">
+      <h3>All bookings</h3>
+      <div id="bookings"></div>
+    </section>
+  </section>
 
-<!-- BOOKINGS DISPLAY -->
-<div id="bookings"></div>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<!-- FIREBASE -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      authDomain: "kaykbook-43ac4.firebaseapp.com",
+      projectId: "kaykbook-43ac4",
+      storageBucket: "kaykbook-43ac4.firebasestorage.app",
+      messagingSenderId: "407645371594",
+      appId: "1:407645371594:web:364808bc1d1c0712f10833"
+    };
 
-<script>
-/* ============================
-   CONFIGURATION
-============================ */
+    const OWNER_UPI = "eltonnoronha102@okhdfcbank";
 
-const OWNER_UPI = "eltonnoronha102@okhdfcbank";
+    // Replace with your Firebase Authentication owner's UID.
+    const OWNER_UID = "YOUR_OWNER_UID";
 
-const params = new URLSearchParams(window.location.search);
-const role = params.get("role") || "owner";
-const bookingId = params.get("id");
-const operatorFilter = params.get("operator");
+    firebase.initializeApp(firebaseConfig);
 
-/* ============================
-   FIREBASE INIT
-============================ */
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
-const firebaseConfig = {
-  
-  authDomain: "kaykbook-43ac4.firebaseapp.com",
-  projectId: "kaykbook-43ac4",
-  storageBucket: "kaykbook-43ac4.firebasestorage.app",
-  messagingSenderId: "407645371594",
-  appId: "1:407645371594:web:364808bc1d1c0712f10833",
-  measurementId: "G-RWD8JJ8M37"
-};
+    let unsubscribe = null;
+    let user = null;
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+    const $ = id => document.getElementById(id);
 
-/* ============================
-   UI MODE CONTROL
-============================ */
-
-window.onload = () => {
-  const title = document.getElementById("pageTitle");
-  const ownerForm = document.getElementById("ownerForm");
-  const linkBox = document.getElementById("linkBox");
-  const filterBox = document.getElementById("monthFilterBox");
-  const pendingBox = document.getElementById("pendingOperatorsBox");
-
-  if (role === "operator") {
-    title.innerText = "Pending Payments";
-    ownerForm.style.display = "none";
-    linkBox.style.display = "none";
-    filterBox.style.display = "none";
-    pendingBox.style.display = "none";
-  } else {
-    title.innerText = "Kayaking Booking Manager";
-  }
-};
-
-/* ============================
-   ADD BOOKING
-============================ */
-
-function addBooking() {
-  if (role !== "owner") return alert("Only owner can create bookings.");
-
-  if (!operator.value || !datetime.value || !customers.value || !amount.value) {
-    alert("Please fill all fields.");
-    return;
-  }
-
-  if (Number(amount.value) <= 0) {
-    alert("Amount must be greater than zero.");
-    return;
-  }
-
-  db.collection("bookings").add({
-    operator: operator.value.trim(),
-    operatorKey: operator.value.trim().toLowerCase(),
-    datetime: datetime.value,
-    customers: customers.value,
-    amount: Number(amount.value),
-    upiId: OWNER_UPI,
-    status: "Pending",
-    activityDone: false,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(doc => {
-    const operatorLink =
-      `${location.origin}${location.pathname}?role=operator&id=${doc.id}`;
-
-    document.getElementById("linkBox").style.display = "block";
-    document.getElementById("operatorLink").value = operatorLink;
-  });
-}
-
-/* ============================
-   COPY LINK
-============================ */
-
-function copyLink(textOverride) {
-  const text = textOverride || document.getElementById("operatorLink").value;
-
-  navigator.clipboard.writeText(text)
-    .then(() => alert("Link copied."))
-    .catch(() => alert("Copy failed."));
-}
-
-/* ============================
-   PAYMENT HANDLER (STABLE)
-============================ */
-
-let paymentInProgress = false;
-
-function payNow() {
-
-  alert(
-    "UPI ID has been copied.\n\n" +
-    "Steps to Pay:\n" +
-    "1. Open your preferred UPI app (GPay / PhonePe / Cred)\n" +
-    "2. Tap 'Pay Anyone' or 'Send Money'\n" +
-    "3. Paste the UPI ID\n" +
-    "4. Enter amount manually\n" +
-    "5. Complete payment\n\n" +
-    "Please share a screenshot after payment."
-  );
-
-  // Attempt to open UPI chooser (may show limited apps only)
-  const chooserLink = "intent://upi/#Intent;scheme=upi;end";
-  window.location.href = chooserLink;
-}
-
-
-
-
-/* ============================
-   LOAD BOOKINGS
-============================ */
-
-let allBookings = [];
-
-let query = db.collection("bookings").orderBy("createdAt","desc");
-
-if (role === "operator" && bookingId) {
-  query = db.collection("bookings")
-    .where(firebase.firestore.FieldPath.documentId(), "==", bookingId);
-}
-
-query.onSnapshot(snapshot => {
-  allBookings = [];
-  const monthSet = new Set();
-
-  snapshot.forEach(doc => {
-    const data = doc.data();
-    data.id = doc.id;
-    allBookings.push(data);
-
-    if (data.datetime) {
-      const month = data.datetime.slice(0,7);
-      monthSet.add(month);
-    }
-  });
-
-  populateMonthFilter([...monthSet].sort());
-  buildPendingOperators(allBookings);
-  applyFilters();
-});
-
-/* ============================
-   MONTH FILTER
-============================ */
-
-function populateMonthFilter(months) {
-  if (role !== "owner") return;
-
-  const select = document.getElementById("monthFilter");
-  select.innerHTML = `<option value="all">All</option>`;
-
-  months.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.innerText = m;
-    select.appendChild(opt);
-  });
-}
-
-function applyMonthFilter() {
-  applyFilters();
-}
-
-/* ============================
-   FILTERS
-============================ */
-
-function applyFilters() {
-  let filtered = [...allBookings];
-
-  const selectedMonth = document.getElementById("monthFilter")?.value;
-  if (selectedMonth && selectedMonth !== "all") {
-    filtered = filtered.filter(b =>
-      b.datetime && b.datetime.startsWith(selectedMonth)
-    );
-  }
-
-  if (operatorFilter) {
-    const key = operatorFilter.toLowerCase();
-    filtered = filtered.filter(b =>
-      b.operatorKey === key && b.status !== "Paid"
-    );
-  }
-
-  renderBookings(filtered);
-}
-
-/* ============================
-   BUILD PENDING OPERATORS
-============================ */
-
-function buildPendingOperators(bookings) {
-  if (role !== "owner") return;
-
-  const pendingMap = {};
-
-  bookings.forEach(b => {
-    if (b.status !== "Pending") return;
-    const key = b.operatorKey || b.operator.toLowerCase();
-
-    if (!pendingMap[key]) {
-      pendingMap[key] = { name: b.operator, count: 0 };
+    function setStatus(message) {
+      $("status").textContent = message;
     }
 
-    pendingMap[key].count++;
-  });
+    function show(id, visible) {
+      $(id).classList.toggle("hidden", !visible);
+    }
 
-  let html = "";
+    $("loginButton").onclick = async () => {
+      try {
+        await auth.signInWithEmailAndPassword(
+          $("email").value.trim(),
+          $("password").value
+        );
+        $("password").value = "";
+      } catch (error) {
+        console.error(error);
+        alert("Incorrect email or password.");
+      }
+    };
 
-  Object.keys(pendingMap).forEach(key => {
-    const op = pendingMap[key];
-    const link =
-      `${location.origin}${location.pathname}?role=operator&operator=${encodeURIComponent(key)}`;
+    $("logoutButton").onclick = () => auth.signOut();
 
-    html += `
-      <div class="small">
-        <b>${op.name}</b> — ${op.count} pending
-        <br>
-        <button onclick="copyLink('${link}')">Copy Payment Link</button>
-      </div><hr>
-    `;
-  });
+    auth.onAuthStateChanged(async signedInUser => {
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
 
-  document.getElementById("pendingOperators").innerHTML =
-    html || "<i>No pending payments.</i>";
-}
+      user = signedInUser;
+      $("bookings").replaceChildren();
 
-/* ============================
-   ACTIVITY CONFIRMATION
-============================ */
+      show("loginCard", !user);
+      show("app", !!user);
 
-function confirmActivity(id) {
-  if (role !== "operator") return;
+      if (!user) {
+        setStatus("Please sign in.");
+        return;
+      }
 
-  if (!confirm("Confirm that the activity has been completed?")) return;
+      if (OWNER_UID === "YOUR_OWNER_UID" || user.uid !== OWNER_UID) {
+        setStatus("This account is not the owner account.");
+        await auth.signOut();
+        return;
+      }
 
-  db.collection("bookings").doc(id).update({
-    activityDone: true,
-    activityDoneAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-}
+      setStatus(`Signed in as owner: ${user.email}`);
+      show("ownerPanel", true);
 
-/* ============================
-   EDIT / DELETE
-============================ */
+      unsubscribe = db.collection("bookings").onSnapshot(
+        renderBookings,
+        error => {
+          console.error(error);
+          setStatus("You do not have permission to load bookings.");
+        }
+      );
+    });
 
-function editBooking(id, current) {
-  if (role !== "owner") return;
-  if (current.status === "Paid") return alert("Paid bookings cannot be edited.");
+    $("addButton").onclick = async () => {
+      if (!user) return;
 
-  const operator = prompt("Operator Name:", current.operator);
-  if (!operator) return;
+      const operator = $("operatorName").value.trim();
+      const datetime = $("datetime").value;
+      const customers = Number($("customers").value);
+      const amount = Number($("amount").value);
 
-  const datetime = prompt("Date & Time:", current.datetime);
-  if (!datetime) return;
+      if (
+        !operator ||
+        !datetime ||
+        !Number.isInteger(customers) ||
+        customers < 1 ||
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        alert("Enter valid booking details.");
+        return;
+      }
 
-  const customers = prompt("Customers:", current.customers);
-  if (!customers || isNaN(customers)) return;
+      try {
+        await db.collection("bookings").add({
+          operator,
+          operatorKey: operator.toLowerCase(),
+          datetime,
+          customers,
+          amount,
+          upiId: OWNER_UPI,
+          status: "Pending",
+          activityDone: false,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
 
-  const amount = prompt("Amount ₹:", current.amount);
-  if (!amount || isNaN(amount) || Number(amount) <= 0) return;
+        ["operatorName", "datetime", "customers", "amount"].forEach(id => {
+          $(id).value = "";
+        });
+      } catch (error) {
+        console.error(error);
+        alert("Booking was not saved. Check Firestore Rules.");
+      }
+    };
 
-  db.collection("bookings").doc(id).update({
-    operator: operator.trim(),
-    operatorKey: operator.trim().toLowerCase(),
-    datetime,
-    customers,
-    amount: Number(amount)
-  });
-}
+    function addLine(parent, text) {
+      const line = document.createElement("div");
+      line.textContent = text;
+      parent.append(line);
+    }
 
-function deleteBooking(id) {
-  if (role !== "owner") return;
-  if (!confirm("Delete this booking permanently?")) return;
+    function makeButton(label, handler, className = "") {
+      const button = document.createElement("button");
+      button.textContent = label;
+      button.className = className;
+      button.onclick = handler;
+      return button;
+    }
 
-  db.collection("bookings").doc(id).delete();
-}
+    function renderBookings(snapshot) {
+      const root = $("bookings");
+      root.replaceChildren();
 
-/* ============================
-   RENDER BOOKINGS
-============================ */
+      if (snapshot.empty) {
+        root.textContent = "No bookings found.";
+        return;
+      }
 
-function renderBookings(bookings) {
-  let html = "";
+      snapshot.forEach(doc => {
+        const booking = doc.data();
+        const card = document.createElement("article");
 
-  bookings.forEach(d => {
+        card.className = "booking";
 
-    const upiLink =
-      `upi://pay?pa=${encodeURIComponent(d.upiId)}` +
-      `&pn=Victory Kayaking` +
-      `&am=${Number(d.amount).toFixed(2)}` +
-      `&cu=INR`;
+        addLine(card, `Operator: ${booking.operator || "—"}`);
+        addLine(card, `Date: ${booking.datetime || "—"}`);
+        addLine(card, `Customers: ${booking.customers || 0}`);
+        addLine(card, `Amount: ₹${Number(booking.amount || 0).toFixed(2)}`);
+        addLine(card, `Payment: ${booking.status || "Pending"}`);
+        addLine(
+          card,
+          booking.activityDone
+            ? "Activity: Completed"
+            : "Activity: Pending"
+        );
 
-    const activityStatus = d.activityDone
-      ? `🛶 Activity: Completed`
-      : `🛶 Activity: Pending`;
-
-    html += `
-      <div class="card">
-        <b>${d.operator}</b><br>
-        📅 ${d.datetime}<br>
-        👥 Customers: ${d.customers}<br>
-        💰 ₹${d.amount}<br>
-        ✅ Payment: ${d.status}<br>
-        ${activityStatus}<br><br>
-
-${
-  role === "operator" && d.status !== "Paid"
-  ? `
-      <div class="small">
-        <b>UPI ID:</b> ${d.upiId}<br>
-        <button onclick="copyUPI('${d.upiId}')">Copy UPI ID</button>
-      </div>
-    <button class="pay" onclick="payNow()">Pay Now</button>
-
-
-
-<div style="color:red; font-size:13px; margin-top:6px;">
-  Pls Share a Screen shot of the payment made
-</div>
-
-    `
-  : ""
-}
-
-        ${
-          role === "operator" && !d.activityDone
-          ? `<button class="done" onclick="confirmActivity('${d.id}')">Confirm Activity Completed</button>`
-          : ""
+        if (booking.status !== "Paid") {
+          card.append(
+            makeButton("Mark paid", () => markPaid(doc.id))
+          );
         }
 
-        ${
-          role === "owner"
-          ? `
-            ${d.status !== "Paid" ? `<button onclick="markPaid('${d.id}')">Mark Paid</button>` : ""}
-            <button onclick='editBooking("${d.id}", ${JSON.stringify(d)})'>Edit</button>
-            <button class="danger" onclick="deleteBooking('${d.id}')">Delete</button>
-          `
-          : ""
-        }
-      </div>
-    `;
-  });
+        card.append(
+          makeButton("Delete booking", () => deleteBooking(doc.id), "danger")
+        );
 
-  document.getElementById("bookings").innerHTML = html;
-}
+        root.append(card);
+      });
+    }
 
-/* ============================
-   MARK PAID
-============================ */
+    async function markPaid(id) {
+      await db.collection("bookings").doc(id).update({
+        status: "Paid",
+        paidAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
 
-function markPaid(id){
-  if (role !== "owner") return alert("Only owner can mark payment.");
-
-  db.collection("bookings").doc(id).update({
-    status: "Paid",
-    paidAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-}
-
-function copyUPI(upi) {
-  navigator.clipboard.writeText(upi)
-    .then(() => alert("UPI ID copied. Open your UPI app and paste it."))
-    .catch(() => alert("Copy failed. Please copy manually."));
-}
-
-</script>
-
+    async function deleteBooking(id) {
+      if (!confirm("Delete this booking permanently?")) return;
+      await db.collection("bookings").doc(id).delete();
+    }
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
